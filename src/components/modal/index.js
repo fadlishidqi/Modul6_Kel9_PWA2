@@ -17,7 +17,7 @@ export default function Modal({ isShow, data, onCancel }) {
                 {!isDataEmpty(data) ? (
                     <div className="modal-content">
                         <img
-                            src={data.i?.imageUrl || "https://via.placeholder.com/200x300?text=No+Image"}
+                            src={data.i?.imageUrl || "https://media.istockphoto.com/id/1396814518/vector/image-coming-soon-no-photo-no-thumbnail-image-available-vector-illustration.jpg?s=612x612&w=0&k=20&c=hnh2OZgQGhf0b46-J2z7aHbIWwq8HNlSDaNp2wn_iko="}
                             alt={data.l || "No Title"}
                             className="modal-image"
                         />

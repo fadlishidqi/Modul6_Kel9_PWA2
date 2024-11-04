@@ -3,15 +3,17 @@ import { clientsClaim } from 'workbox-core';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { StaleWhileRevalidate, CacheFirst } from 'workbox-strategies';
+import { StaleWhileRevalidate, NetworkFirst, CacheFirst } from 'workbox-strategies';
 
 clientsClaim();
 
-const CACHE_NAME = 'movie-app-cache-v1';
-const API_CACHE_NAME = 'movie-api-cache';
+const CACHE_NAME = 'pwa-cache-v1';
+const API_CACHE_NAME = 'api-cache';
 
+// Precache manifest
 precacheAndRoute(self.__WB_MANIFEST);
 
+// App Shell routing
 const fileExtensionRegexp = new RegExp('/[^/?]+\\.[^/]+$');
 registerRoute(
   ({ request, url }) => {
@@ -29,10 +31,12 @@ registerRoute(
   createHandlerBoundToURL(process.env.PUBLIC_URL + '/index.html')
 );
 
+// API Route caching
 registerRoute(
-  ({ url }) => url.origin === 'https://api.themoviedb.org',
-  new StaleWhileRevalidate({
+  ({ url }) => url.origin === 'https://imdb8.p.rapidapi.com',
+  new NetworkFirst({
     cacheName: API_CACHE_NAME,
+    networkTimeoutSeconds: 3,
     plugins: [
       new ExpirationPlugin({
         maxEntries: 50,
@@ -43,7 +47,7 @@ registerRoute(
   })
 );
 
-// Cache untuk gambar
+// Image caching
 registerRoute(
   ({ request }) => request.destination === 'image',
   new CacheFirst({
@@ -58,6 +62,7 @@ registerRoute(
   })
 );
 
+// Static resources
 registerRoute(
   ({ request }) => 
     request.destination === 'script' ||
@@ -67,62 +72,69 @@ registerRoute(
   })
 );
 
-// Handle offline fallback
-self.addEventListener('fetch', (event) => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
-        try {
-          // First, try to use the navigation preload response if it's supported
-          const preloadResponse = await event.preloadResponse;
-          if (preloadResponse) {
-            return preloadResponse;
-          }
-
-          // Always try the network first
-          const networkResponse = await fetch(event.request);
-          return networkResponse;
-        } catch (error) {
-          // catch is only triggered if an exception is thrown, which is likely
-          // due to a network error
-          // If fetch() returns a valid HTTP response with a response code in
-          // the 4xx or 5xx range, the catch() will NOT be called
-          console.log('Fetch failed; returning offline page instead.', error);
-
-          const cache = await caches.open(CACHE_NAME);
-          const cachedResponse = await cache.match(event.request);
-          return cachedResponse || await cache.match('/offline.html');
-        }
-      })()
-    );
-  }
+// Installation event
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        return cache.addAll([
+          '/',
+          '/index.html',
+          '/components/card/index.js',
+          '/components/card/index.css',
+          '/components/header/index.js',
+          '/components/header/index.css',
+          '/components/modal/index.js',
+          '/components/modal/index.css',
+          '/image/default.png',
+          '/pages/LandingPage.js',
+          '/App.css',
+          '/App.js',
+          '/index.css',
+          '/index.js',
+          '/db.js'
+        ]);
+      })
+  );
 });
 
+// Activation event
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
+  );
+});
+
+// Fetch event
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        return response || fetch(event.request);
+      })
+  );
+});
+
+// Message event
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-          return null;
-        })
-      );
-    })
-  );
-});
-
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'movieAppSync') {
-    event.waitUntil(
-     
-    );
+  
+  if (event.data && event.data.type === 'GET_CLIENTS') {
+    self.clients.matchAll().then(clients => {
+      console.log('Current clients:', clients);
+    });
   }
 });

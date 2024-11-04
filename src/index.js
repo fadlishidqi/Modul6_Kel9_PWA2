@@ -12,7 +12,6 @@ root.render(
   </React.StrictMode>
 );
 
-// Register service worker dengan konfigurasi custom
 serviceWorkerRegistration.register({
   onUpdate: registration => {
     const waitingServiceWorker = registration.waiting;
@@ -28,9 +27,8 @@ serviceWorkerRegistration.register({
   },
   onSuccess: registration => {
     console.log('Service Worker registered successfully');
+    registration.active.postMessage({type: 'GET_CLIENTS'});
   }
 });
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
 reportWebVitals();
